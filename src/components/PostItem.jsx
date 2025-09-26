@@ -8,8 +8,9 @@ function PostItem({ post, currentUser, onPostUpdated, onPostDeleted }) {
   const [title, setTitle] = useState(post.title);
   const [content, setContent] = useState(post.content);
 
-  // ----- Likes acumulativos com persistência local -----
+  // ===== Likes com toggle e persistência local =====
   const [likes, setLikes] = useState(0);
+  const [userLiked, setUserLiked] = useState(false);
 
   useEffect(() => {
     try {
@@ -17,41 +18,52 @@ function PostItem({ post, currentUser, onPostUpdated, onPostDeleted }) {
       const saved = raw ? JSON.parse(raw) : {};
       const entry = saved?.[post.id];
 
-      let initial = 0;
-      if (typeof entry === 'number') {
-        initial = entry;
-      } else if (entry && typeof entry === 'object' && typeof entry.count === 'number') {
-        initial = entry.count;
+      if (entry && typeof entry.count === 'number') {
+        setLikes(entry.count);
+        setUserLiked(entry.users?.includes(currentUser) || false);
       }
-      if (!Number.isFinite(initial) || initial < 0) initial = 0;
-
-      setLikes(initial);
     } catch {
       setLikes(0);
+      setUserLiked(false);
     }
-  }, [post.id]);
+  }, [post.id, currentUser]);
 
-  const persistLikes = (count) => {
+  const persistLikes = (count, users) => {
     try {
       const raw = localStorage.getItem('likes');
       const saved = raw ? JSON.parse(raw) : {};
-      saved[post.id] = { count };
+      saved[post.id] = { count, users };
       localStorage.setItem('likes', JSON.stringify(saved));
     } catch {
-      // se algo der errado no parse/stringify, ignora silenciosamente
+      // ignora falhas silenciosamente
     }
   };
 
   const handleLike = () => {
     setLikes((prev) => {
-      const safePrev = Number.isFinite(prev) ? prev : 0;
-      const next = safePrev + 1; 
-      persistLikes(next);
-      return next;
+      const raw = localStorage.getItem('likes');
+      const saved = raw ? JSON.parse(raw) : {};
+      const entry = saved[post.id] || { count: 0, users: [] };
+      const currentUsers = Array.isArray(entry.users) ? entry.users : [];
+
+      let nextCount;
+      let nextUsers;
+
+      if (userLiked) {
+        nextUsers = currentUsers.filter((u) => u !== currentUser);
+        nextCount = Math.max(prev - 1, 0);
+      } else {
+        nextUsers = [...currentUsers, currentUser];
+        nextCount = prev + 1;
+      }
+
+      persistLikes(nextCount, nextUsers);
+      setUserLiked(!userLiked);
+      return nextCount;
     });
   };
 
-  // ----- CRUD -----
+  // ===== CRUD =====
   const handleUpdate = async () => {
     try {
       await api.patch(`/careers/${post.id}/`, { title, content });
@@ -72,7 +84,6 @@ function PostItem({ post, currentUser, onPostUpdated, onPostDeleted }) {
     }
   };
 
-  // Permissão de edição
   const canEdit =
     (post.username || '').trim().toLowerCase() ===
     (currentUser || '').trim().toLowerCase();
@@ -130,7 +141,7 @@ function PostItem({ post, currentUser, onPostUpdated, onPostDeleted }) {
 
         <p style={{ marginTop: 0, whiteSpace: 'pre-wrap' }}>{post.content}</p>
 
-        {/* Likes acumulativos */}
+        {/* Likes com toggle */}
         <div
           style={{
             display: 'flex',
@@ -147,10 +158,10 @@ function PostItem({ post, currentUser, onPostUpdated, onPostDeleted }) {
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              color: 'red',
+              color: 'red', 
               fontSize: 20,
             }}
-            title="Like"
+            title={userLiked ? 'Unlike' : 'Like'}
           >
             <FaHeart />
           </button>
@@ -228,3 +239,4 @@ function PostItem({ post, currentUser, onPostUpdated, onPostDeleted }) {
 }
 
 export default PostItem;
+
