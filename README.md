@@ -1,4 +1,4 @@
-# CodeLeap Junior Test – Ajustado (React CRA)
+# CodeLeap Junior Test – (React CRA)
 
 ## Como rodar
 ```bash
